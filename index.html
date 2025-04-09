@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TerraSentinel | Экологическая карта Казахстана</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #00e676;
+            --secondary: #18ffff;
+            --dark-bg: #0a1929;
+            --panel-bg: rgba(0, 30, 60, 0.9);
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--dark-bg);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100%;
+            z-index: 1;
+        }
+
+        .control-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: var(--panel-bg);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid var(--primary);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            box-shadow: 0 0 20px rgba(0, 230, 118, 0.2);
+            max-width: 300px;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .panel-header h2 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: var(--secondary);
+        }
+        
+        .panel-header i {
+            margin-right: 10px;
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+
+        .layer-btn {
+            background: none;
+            border: 2px solid var(--secondary);
+            color: white;
+            padding: 8px 15px;
+            margin: 5px 0;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: block;
+            width: 100%;
+            text-align: left;
+        }
+
+        .layer-btn:hover {
+            background: rgba(24, 255, 255, 0.2);
+        }
+
+        .layer-btn.active {
+            background: var(--secondary);
+            color: var(--dark-bg);
+            font-weight: bold;
+        }
+        
+        .layer-btn i {
+            margin-right: 8px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .legend {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0, 20, 40, 0.7);
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            margin-right: 8px;
+            border-radius: 3px;
+        }
+
+        footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 15, 30, 0.95);
+            border-top: 1px solid var(--primary);
+            z-index: 1000;
+            font-size: 0.9rem;
+        }
+        
+        .status-bar {
+            position: fixed;
+            bottom: 40px;
+            left: 0;
+            width: 100%;
+            background: rgba(0, 80, 40, 0.8);
+            padding: 5px 10px;
+            font-size: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+            z-index: 1000;
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        /* Стили для маркеров */
+        .eco-marker {
+            background: none;
+            border: none;
+        }
+        
+        .eco-marker i {
+            font-size: 1.5rem;
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.7);
+        }
+        
+        .park-icon { color: #4caf50; }
+        .mountain-icon { color: #795548; }
+        .water-icon { color: #2196f3; }
+        .camping-icon { color: #ff9800; }
+        .city-icon { color: #9c27b0; }
+    </style>
+</head>
+<body>
+    <!-- Панель управления -->
+    <div class="control-panel">
+        <div class="panel-header">
+            <i class="fas fa-globe-asia"></i>
+            <h2>TerraSentinel</h2>
+        </div>
+        <button class="layer-btn active" data-layer="base">
+            <i class="fas fa-map"></i> Базовая карта
+        </button>
+        <button class="layer-btn" data-layer="satellite">
+            <i class="fas fa-satellite"></i> Спутниковый слой
+        </button>
+        <button class="layer-btn" data-layer="thermal">
+            <i class="fas fa-fire"></i> Тепловые зоны
+        </button>
+        <button class="layer-btn" data-layer="routes">
+            <i class="fas fa-route"></i> Туристические маршруты
+        </button>
+        <button class="layer-btn" data-layer="parks">
+            <i class="fas fa-tree"></i> Национальные парки
+        </button>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #4caf50;"></div>
+                <span>Национальные парки</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #2196f3;"></div>
+                <span>Водные источники</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff9800;"></div>
+                <span>Места для кемпинга</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f44336;"></div>
+                <span>Тепловые зоны</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Статус бар -->
+    <div class="status-bar">
+        <span><i class="fas fa-satellite-dish pulse"></i> Спутниковый мониторинг активен</span>
+        <span>Обновлено: <span id="update-time">Сегодня, 12:34:45</span></span>
+    </div>
+
+    <!-- Контейнер для карты -->
+    <div id="map"></div>
+
+    <!-- Подвал -->
+    <footer>
+        <span>🌍 TerraSentinel | Система экологического мониторинга Казахстана © 2023</span>
+    </footer>
+
+    <!-- Скрипты -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script>
+        // Инициализация карты с более подходящим начальным видом
+        const map = L.map('map').setView([48.0, 67.0], 6);
+        
+        // Обновление времени в статус баре
+        function updateTime() {
+            const now = new Date();
+            const options = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            };
+            document.getElementById('update-time').textContent = now.toLocaleDateString('ru-RU', options);
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        // Базовые слои
+        const baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+        
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '© Esri'
+        });
+
+        // Тепловая карта с реальными данными (имитация)
+        const thermalData = [
+            [51.1694, 71.4491, 0.8], // Нур-Султан
+            [43.2565, 76.9285, 0.9], // Алматы
+            [42.3417, 69.5901, 0.6],  // Шымкент
+            [49.7985, 73.0996, 0.5], // Караганда
+            [50.4084, 80.2265, 0.4],  // Семей
+            [47.1125, 51.9147, 0.7],  // Атырау
+            [44.8528, 65.5092, 0.3],  // Кызылорда
+            [52.2847, 76.9414, 0.5],  // Павлодар
+            [53.1959, 63.6246, 0.4],  // Костанай
+            [45.0165, 78.3740, 0.3]   // Талдыкорган
+        ];
+        
+        const thermalLayer = L.heatLayer(thermalData, {
+            radius: 25,
+            blur: 15,
+            maxZoom: 17,
+            gradient: {0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'}
+        });
+
+        // Маршруты для экотуризма
+        const routesLayer = L.layerGroup([
+            // Маршрут в Алматы (Большое Алматинское ущелье)
+            L.polyline([
+                [43.1151, 76.9675], // Вход в ущелье
+                [43.1003, 76.9782], 
+                [43.0905, 76.9873], // Озеро БАО
+                [43.0812, 76.9968]  // Конечная точка
+            ], {
+                color: '#00e676',
+                weight: 4,
+                dashArray: '5, 5'
+            }).bindPopup("<b>Маршрут: Большое Алматинское ущелье</b><br>Протяженность: 12 км<br>Сложность: средняя"),
+            
+            // Маршрут в Чарынском каньоне
+            L.polyline([
+                [43.3500, 79.0800], // Вход в каньон
+                [43.3550, 79.0850],
+                [43.3600, 79.0900], // Долина замков
+                [43.3650, 79.0950]  // Смотровая площадка
+            ], {
+                color: '#18ffff',
+                weight: 4,
+                dashArray: '5, 5'
+            }).bindPopup("<b>Маршрут: Чарынский каньон</b><br>Протяженность: 8 км<br>Сложность: легкая"),
+            
+            // Маршрут в Баянауле
+            L.polyline([
+                [50.8000, 75.7000], // Баянаульский вход
+                [50.8050, 75.7100], 
+                [50.8100, 75.7200],  // Озеро Жасыбай
+                [50.8150, 75.7300]  // Гора Найзатас
+            ], {
+                color: '#ff4081',
+                weight: 4,
+                dashArray: '5, 5'
+            }).bindPopup("<b>Маршрут: Баянаульский национальный парк</b><br>Протяженность: 15 км<br>Сложность: средняя")
+        ]);
+
+        // Национальные парки и охраняемые территории
+        const parksLayer = L.layerGroup([
+            // Алматинский заповедник
+            L.polygon([
+                [43.0, 77.0],
+                [43.0, 77.5],
+                [42.5, 77.5],
+                [42.5, 77.0]
+            ], {
+                color: '#4caf50',
+                fillOpacity: 0.3,
+                weight: 2
+            }).bindPopup("<b>Алматинский заповедник</b><br>Площадь: 71,700 га<br>Год основания: 1931"),
+            
+            // Баянаульский национальный парк
+            L.polygon([
+                [50.7, 75.6],
+                [50.7, 75.8],
+                [50.9, 75.8],
+                [50.9, 75.6]
+            ], {
+                color: '#4caf50',
+                fillOpacity: 0.3,
+                weight: 2
+            }).bindPopup("<b>Баянаульский национальный парк</b><br>Площадь: 68,453 га<br>Год основания: 1985"),
+            
+            // Чарынский национальный парк
+            L.polygon([
+                [43.2, 79.0],
+                [43.2, 79.3],
+                [43.5, 79.3],
+                [43.5, 79.0]
+            ], {
+                color: '#4caf50',
+                fillOpacity: 0.3,
+                weight: 2
+            }).bindPopup("<b>Чарынский национальный парк</b><br>Площадь: 127,050 га<br>Год основания: 2004")
+        ]);
+
+        // Создаем кастомные маркеры для разных типов объектов
+        function createCustomMarker(lat, lng, iconClass, popupContent) {
+            return L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'eco-marker',
+                    html: `<i class="fas ${iconClass}"></i>`
+                })
+            }).bindPopup(popupContent);
+        }
+
+        // Добавляем точки интереса
+        const pointsOfInterest = L.layerGroup([
+            // Национальные парки
+            createCustomMarker(43.25, 77.25, 'fa-tree park-icon', 
+                "<b>Алматинский заповедник</b><br>Богатая флора и фауна, реликтовые ели"),
+            
+            createCustomMarker(50.8, 75.7, 'fa-tree park-icon', 
+                "<b>Баянаульский национальный парк</b><br>Живописные озера и скальные образования"),
+            
+            createCustomMarker(43.35, 79.1, 'fa-tree park-icon', 
+                "<b>Чарынский национальный парк</b><br>Знаменитый каньон и ясеневая роща"),
+            
+            // Горы
+            createCustomMarker(43.035, 77.04, 'fa-mountain mountain-icon', 
+                "<b>Пик Талгар</b><br>Высота: 4,979 м"),
+            
+            createCustomMarker(42.437, 80.21, 'fa-mountain mountain-icon', 
+                "<b>Хан-Тенгри</b><br>Высота: 7,010 м"),
+            
+            // Водные источники
+            createCustomMarker(43.15, 77.06, 'fa-tint water-icon', 
+                "<b>Большое Алматинское озеро</b><br>Высота: 2,511 м"),
+            
+            createCustomMarker(49.33, 75.48, 'fa-tint water-icon', 
+                "<b>Озеро Каинды</b><br>Подводный хвойный лес"),
+            
+            // Кемпинги
+            createCustomMarker(43.12, 76.97, 'fa-campground camping-icon', 
+                "<b>Кемпинг 'Зеленые холмы'</b><br>Услуги: палатки, питание"),
+            
+            createCustomMarker(50.81, 75.71, 'fa-campground camping-icon', 
+                "<b>Кемпинг у озера Жасыбай</b><br>Пляж, прокат лодок")
+        ]);
+
+        // Добавляем начальные маркеры городов с более подробной информацией
+        const cityMarkers = L.layerGroup([
+            createCustomMarker(43.2565, 76.9285, 'fa-city city-icon', 
+                "<b>Алматы</b><br>Эко-статус: ⚠️ Умеренный<br>AQI: 78 (умеренный)<br>Рекомендации: Используйте маску в центре города"),
+            
+            createCustomMarker(51.1694, 71.4491, 'fa-city city-icon', 
+                "<b>Нур-Султан</b><br>Эко-статус: ✅ Стабильный<br>AQI: 45 (хороший)<br>Рекомендации: Благоприятные условия"),
+            
+            createCustomMarker(42.3417, 69.5901, 'fa-city city-icon', 
+                "<b>Шымкент</b><br>Эко-статус: ⚠️ Умеренный<br>AQI: 65 (умеренный)<br>Рекомендации: Избегайте длительного пребывания на улице")
+        ]);
+
+        // Слои для управления
+        const layers = {
+            base: L.layerGroup([baseLayer, cityMarkers]),
+            satellite: L.layerGroup([satelliteLayer, cityMarkers]),
+            thermal: L.layerGroup([baseLayer, thermalLayer, pointsOfInterest, cityMarkers]),
+            routes: L.layerGroup([baseLayer, routesLayer, pointsOfInterest, cityMarkers]),
+            parks: L.layerGroup([baseLayer, parksLayer, pointsOfInterest, cityMarkers])
+        };
+
+        // Управление слоями с улучшенной логикой
+        document.querySelectorAll('.layer-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const layer = this.dataset.layer;
+                
+                // Сначала удаляем все слои
+                Object.values(layers).forEach(l => {
+                    if (map.hasLayer(l)) map.removeLayer(l);
+                });
+                
+                // Добавляем выбранный слой
+                layers[layer].addTo(map);
+                
+                // Обновляем активные кнопки
+                document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        // Добавляем масштаб
+        L.control.scale({position: 'bottomleft'}).addTo(map);
+        
+        // Добавляем базовый слой по умолчанию
+        layers.base.addTo(map);
+    </script>
+</body>
+</html>
